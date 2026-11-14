@@ -412,7 +412,9 @@
   function initControls() {
     document.addEventListener('keydown', (e) => {
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (document.body.classList.contains('pledge-open')) return; // modal owns the keyboard
       const t = e.target;
+      if (t.closest && t.closest('#jarvisPanel, .jarvis-fab, #gate, #donateDialog')) return; // overlays own their keys
       if (t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
       const onControl = t.closest && t.closest('button, a');
       const k = e.key;
@@ -760,11 +762,13 @@
   }
 
   /* ---------- 11. Slide 10: pledge + live ticker ---------- */
-  function heartBurst(origin) {
+  function heartBurst(origin, cx, cy) {
     if (reduceMotion) return;
-    const r = origin.getBoundingClientRect();
-    const cx = r.left + r.width / 2;
-    const cy = r.top + r.height / 2;
+    if (cx == null || cy == null) {
+      const r = origin.getBoundingClientRect();
+      cx = r.left + r.width / 2;
+      cy = r.top + r.height / 2;
+    }
     const colors = ['#ff2d55', '#ff6b5b', '#ffbf5f', '#ff8aa0'];
     for (let i = 0; i < 28; i++) {
       const h = document.createElement('span');
@@ -789,17 +793,9 @@
   }
 
   function initClosing() {
-    const section = $('#pledge');
-    const btn = $('#pledgeBtn');
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-      section.classList.add('is-pledged');
-      $('span', btn).textContent = 'Thank you! You could save 8 lives';
-      heartBurst(btn);
-    });
-
     // 5 lakh deaths a year, roughly one every 63 seconds
     const ticker = $('#lossTicker');
+    if (!ticker) return;
     const PER_SEC = 500000 / (365 * 24 * 3600);
     setInterval(() => {
       const n = Math.floor((performance.now() / 1000) * PER_SEC);
@@ -809,7 +805,445 @@
     }, 1000);
   }
 
+  /* ---------- 12. Pledge: the site takes the donor pledge ---------- */
+  function initPledge() {
+    const dialog = $('#pledgeDialog');
+    if (!dialog) return;
+    const form = $('#pledgeForm');
+    const foot = $('#pledgeFoot');
+    const success = $('#pledgeSuccess');
+    const nameInput = $('#plName');
+    const nameErr = $('#plNameErr');
+    const organErr = $('#plOrganErr');
+    const consent = $('#plConsent');
+    const consentWrap = $('#plConsentWrap');
+    const closingSection = $('#pledge');
+    const closingBtn = $('#pledgeBtn');
+    const STORE = 'sp-pledge';
+    const ORGAN_ICON = { Heart: 'o-heart', Kidneys: 'o-kidney', Liver: 'o-liver', Lungs: 'o-lungs', Corneas: 'o-eye' };
+
+    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const firstName = (n) => (n.trim().split(/\s+/)[0] || 'friend');
+    const rand4 = () => 1000 + Math.floor(Math.random() * 9000);
+    const genId = () => `SP ${rand4()} ${rand4()}`;
+    const read = () => { try { return JSON.parse(localStorage.getItem(STORE) || 'null'); } catch { return null; } };
+    const write = (d) => { try { localStorage.setItem(STORE, JSON.stringify(d)); } catch {} };
+
+    let pledge = read();
+    let justPledged = false;
+
+    function showForm(data) {
+      success.hidden = true;
+      form.hidden = false;
+      foot.hidden = false;
+      if (data) {
+        nameInput.value = data.name || '';
+        $('#plMobile').value = data.mobile || '';
+        $('#plCity').value = data.city || '';
+        const safe = window.CSS && CSS.escape ? CSS.escape(data.blood || '') : (data.blood || '');
+        const b = form.querySelector(`input[name="blood"][value="${safe}"]`);
+        if (b) b.checked = true;
+        form.querySelectorAll('input[name="organs"]').forEach((c) => { c.checked = (data.organs || []).includes(c.value); });
+      }
+    }
+
+    function showSuccess(data) {
+      const icons = (data.organs || []).map((o) => ORGAN_ICON[o]).filter(Boolean)
+        .map((id) => `<svg class="i"><use href="#${id}"/></svg>`).join('');
+      $('#pledgeCardWrap').innerHTML = `
+        <div class="donor-card">
+          <div class="donor-card__head"><span>Second Pulse</span><em>ORGAN DONOR</em></div>
+          <p class="donor-card__name">${esc(data.name)}</p>
+          <div class="donor-card__meta">
+            <span><small>Donor ID</small>${esc(data.id)}</span>
+            <span><small>Blood</small>${esc(data.blood || '—')}</span>
+          </div>
+          <div class="donor-card__foot">
+            <span class="donor-card__organs">${icons}</span>
+            <span class="qr qr--card">${qrSVG(data.seed, 21)}</span>
+          </div>
+        </div>`;
+      $('#pledgeWho').textContent = firstName(data.name);
+      form.hidden = true;
+      foot.hidden = true;
+      success.hidden = false;
+    }
+
+    function reflect() {
+      if (!closingBtn) return;
+      closingSection.classList.add('is-pledged');
+      const span = $('span', closingBtn);
+      if (span) span.textContent = 'You’re a donor — view your card';
+    }
+
+    function open() {
+      if (pledge) showSuccess(pledge); else showForm(null);
+      document.body.classList.add('pledge-open');
+      document.documentElement.style.overflow = 'hidden';
+      if (typeof dialog.showModal === 'function') { if (!dialog.open) dialog.showModal(); }
+      else dialog.setAttribute('open', '');
+      setTimeout(() => { (pledge ? $('#pledgeDoneBtn') : nameInput).focus(); }, 70);
+    }
+    function close() {
+      if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+      else dialog.removeAttribute('open');
+    }
+
+    dialog.addEventListener('close', () => {
+      document.body.classList.remove('pledge-open');
+      document.documentElement.style.overflow = '';
+      if (justPledged) {
+        justPledged = false;
+        heartBurst(null, window.innerWidth / 2, window.innerHeight * 0.52);
+      }
+    });
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) close(); }); // backdrop
+
+    $$('[data-pledge-open]').forEach((el) => el.addEventListener('click', (e) => { e.preventDefault(); open(); }));
+    $$('[data-pledge-close]', dialog).forEach((el) => el.addEventListener('click', close));
+
+    $('#pledgeEditBtn').addEventListener('click', () => showForm(pledge));
+
+    /* --- Donor card as an image (for download + share) --- */
+    function cardSVG(d) {
+      const organs = (d.organs || []).join(' · ');
+      const qr = qrSVG(d.seed, 21).replace('<svg ', '<svg x="452" y="208" width="152" height="152" ');
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="660" height="400" viewBox="0 0 660 400">
+<defs>
+  <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#ff2d55"/><stop offset=".55" stop-color="#ff6b5b"/><stop offset="1" stop-color="#ffb453"/>
+  </linearGradient>
+</defs>
+<rect width="660" height="400" rx="34" fill="url(#g)"/>
+<circle cx="610" cy="-30" r="190" fill="#ffffff" opacity=".13"/>
+<text x="44" y="62" font-family="Helvetica,Arial,sans-serif" font-size="25" font-weight="700" letter-spacing="2.4" fill="#fff">SECOND PULSE</text>
+<rect x="468" y="38" width="148" height="34" rx="9" fill="#000" opacity=".22"/>
+<text x="542" y="61" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15" font-weight="700" letter-spacing="1.5" fill="#fff">ORGAN DONOR</text>
+<text x="44" y="150" font-family="Helvetica,Arial,sans-serif" font-size="44" font-weight="700" fill="#fff">${esc(d.name)}</text>
+<text x="44" y="206" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="600" letter-spacing="1.6" fill="#fff" opacity=".82">DONOR ID</text>
+<text x="44" y="236" font-family="Helvetica,Arial,sans-serif" font-size="25" font-weight="700" fill="#fff">${esc(d.id)}</text>
+<text x="256" y="206" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="600" letter-spacing="1.6" fill="#fff" opacity=".82">BLOOD</text>
+<text x="256" y="236" font-family="Helvetica,Arial,sans-serif" font-size="25" font-weight="700" fill="#fff">${esc(d.blood || '—')}</text>
+<text x="44" y="290" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="600" letter-spacing="1.6" fill="#fff" opacity=".82">I PLEDGE TO DONATE</text>
+<text x="44" y="318" font-family="Helvetica,Arial,sans-serif" font-size="17" font-weight="600" fill="#fff">${esc(organs)}</text>
+<text x="44" y="362" font-family="Helvetica,Arial,sans-serif" font-size="13" fill="#fff" opacity=".8">One donor can save up to 8 lives · Tell your family</text>
+<rect x="444" y="200" width="168" height="168" rx="14" fill="#fff"/>
+${qr}
+</svg>`;
+    }
+
+    function cardPNG(d) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(new Blob([cardSVG(d)], { type: 'image/svg+xml;charset=utf-8' }));
+        const img = new Image();
+        img.onload = () => {
+          const S = 2; // retina export
+          const c = document.createElement('canvas');
+          c.width = 660 * S; c.height = 400 * S;
+          const ctx = c.getContext('2d');
+          ctx.scale(S, S);
+          ctx.drawImage(img, 0, 0);
+          URL.revokeObjectURL(url);
+          c.toBlob((b) => (b ? resolve(b) : reject(new Error('encode failed'))), 'image/png');
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('render failed')); };
+        img.src = url;
+      });
+    }
+
+    const fileName = (d) => `second-pulse-donor-card-${String(d.name).trim().split(/\s+/)[0].toLowerCase()}.png`;
+
+    $('#pledgeDownloadBtn').addEventListener('click', async () => {
+      if (!pledge) return;
+      try {
+        const blob = await cardPNG(pledge);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName(pledge);
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+      } catch {
+        window.open(URL.createObjectURL(new Blob([cardSVG(pledge)], { type: 'image/svg+xml' })), '_blank');
+      }
+    });
+
+    $('#pledgeShareBtn').addEventListener('click', async () => {
+      const text = 'I just pledged to be an organ donor with Second Pulse. One donor can save up to 8 lives. Will you?';
+      // Share the card image itself when the browser supports file sharing
+      try {
+        if (navigator.canShare && pledge) {
+          const file = new File([await cardPNG(pledge)], fileName(pledge), { type: 'image/png' });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: 'Second Pulse', text });
+            return;
+          }
+        }
+      } catch { /* fall through to link sharing */ }
+      if (navigator.share) { navigator.share({ title: 'Second Pulse', text, url: location.href }).catch(() => {}); return; }
+      try {
+        await navigator.clipboard.writeText(`${text} ${location.href}`);
+        const s = $('span', $('#pledgeShareBtn'));
+        const old = s.textContent;
+        s.textContent = 'Link copied';
+        setTimeout(() => { s.textContent = old; }, 1800);
+      } catch {}
+    });
+
+    /* --- Feedback after pledging --- */
+    const fb = $('#feedback');
+    const fbDone = $('#fbDone');
+    const stars = $('#stars');
+    const fbText = $('#fbText');
+    let rating = 0;
+
+    function paintStars(n) {
+      $$('.star', stars).forEach((b) => {
+        const on = Number(b.dataset.rate) <= n;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-checked', String(Number(b.dataset.rate) === n));
+      });
+    }
+    stars.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-rate]');
+      if (!b) return;
+      rating = Number(b.dataset.rate);
+      paintStars(rating);
+    });
+    $('#fbSend').addEventListener('click', () => {
+      if (!rating && !fbText.value.trim()) { paintStars(0); stars.querySelector('.star').focus(); return; }
+      try {
+        const all = JSON.parse(localStorage.getItem('sp-feedback') || '[]');
+        all.push({ rating, note: fbText.value.trim(), date: new Date().toISOString() });
+        localStorage.setItem('sp-feedback', JSON.stringify(all));
+      } catch {}
+      fb.hidden = true;
+      fbDone.hidden = false;
+    });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = nameInput.value.trim();
+      const organs = $$('input[name="organs"]:checked', form).map((c) => c.value);
+      let firstInvalid = null;
+      if (name.length < 2) { nameErr.textContent = 'Please enter your name.'; nameInput.setAttribute('aria-invalid', 'true'); firstInvalid = firstInvalid || nameInput; }
+      else { nameErr.textContent = ''; nameInput.removeAttribute('aria-invalid'); }
+      if (!organs.length) { organErr.textContent = 'Choose at least one organ to pledge.'; firstInvalid = firstInvalid || form.querySelector('input[name="organs"]'); }
+      else organErr.textContent = '';
+      if (!consent.checked) { consentWrap.setAttribute('data-err', 'true'); firstInvalid = firstInvalid || consent; }
+      else consentWrap.removeAttribute('data-err');
+      if (firstInvalid) { firstInvalid.focus(); return; }
+
+      const blood = (form.querySelector('input[name="blood"]:checked') || {}).value || 'Not sure';
+      pledge = {
+        name,
+        mobile: $('#plMobile').value.trim(),
+        city: $('#plCity').value.trim(),
+        blood,
+        organs,
+        id: (pledge && pledge.id) || genId(),
+        seed: (pledge && pledge.seed) || rand4(),
+        date: new Date().toISOString(),
+      };
+      write(pledge);
+      reflect();
+      justPledged = true;
+      showSuccess(pledge);
+      $('#pledgeDoneBtn').focus();
+    });
+
+    if (pledge) reflect();
+  }
+
+  /* ---------- 13. Start gate: verify by Aadhaar OR email, then language ---------- */
+  function initGate() {
+    const gate = $('#gate');
+    if (!gate) return;
+    const form = $('#gateForm');
+    const seg = $('#gateSeg');
+    const step1 = $('#gateStep1');
+    const step2 = $('#gateStep2');
+    const langGrid = $('#langGrid');
+    const fieldA = $('#gateFieldAadhaar');
+    const fieldE = $('#gateFieldEmail');
+    const noteText = $('#gateNoteText');
+    const aInput = $('#gateAadhaar');
+    const aErr = $('#gateAadhaarErr');
+    const eInput = $('#gateEmail');
+    const eErr = $('#gateEmailErr');
+    const KEY = 'sp-gate';
+    const LANG_KEY = 'sp-lang';
+    let mode = 'aadhaar';
+
+    const NOTE = {
+      aadhaar: 'Validated on your device using the Aadhaar checksum. We store only the last 4 digits — nothing is sent to a server.',
+      email: 'Checked for a valid address on your device. Nothing is sent to a server.',
+    };
+
+    // Verhoeff checksum — the algorithm that makes an Aadhaar number self-validating.
+    const dT = [
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 0, 6, 7, 8, 9, 5], [2, 3, 4, 0, 1, 7, 8, 9, 5, 6],
+      [3, 4, 0, 1, 2, 8, 9, 5, 6, 7], [4, 0, 1, 2, 3, 9, 5, 6, 7, 8], [5, 9, 8, 7, 6, 0, 4, 3, 2, 1],
+      [6, 5, 9, 8, 7, 1, 0, 4, 3, 2], [7, 6, 5, 9, 8, 2, 1, 0, 4, 3], [8, 7, 6, 5, 9, 3, 2, 1, 0, 4],
+      [9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
+    ];
+    const pT = [
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 5, 7, 6, 2, 8, 3, 0, 9, 4], [5, 8, 0, 3, 7, 9, 6, 1, 4, 2],
+      [8, 9, 1, 6, 0, 4, 3, 5, 2, 7], [9, 4, 5, 3, 1, 2, 6, 8, 7, 0], [4, 2, 8, 6, 5, 7, 3, 9, 0, 1],
+      [2, 7, 9, 3, 8, 0, 6, 4, 1, 5], [7, 0, 4, 6, 9, 1, 3, 2, 5, 8],
+    ];
+    const verhoeff = (num) => {
+      let c = 0;
+      const a = num.split('').reverse().map(Number);
+      for (let i = 0; i < a.length; i++) c = dT[c][pT[i % 8][a[i]]];
+      return c === 0;
+    };
+    const validAadhaar = (s) => /^[2-9]\d{11}$/.test(s) && verhoeff(s);
+    const validEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s);
+
+    function finish() {
+      document.documentElement.classList.add('is-verified');
+      gate.classList.add('is-out');
+      document.documentElement.style.overflow = '';
+      setTimeout(() => { gate.hidden = true; }, 400);
+    }
+    function showLangStep() {
+      step1.hidden = true;
+      step2.hidden = false;
+      setTimeout(() => { try { langGrid.querySelector('.lang-opt').focus(); } catch {} }, 80);
+    }
+
+    langGrid.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-lang]');
+      if (!b) return;
+      try { localStorage.setItem(LANG_KEY, b.dataset.lang); } catch {}
+      document.dispatchEvent(new CustomEvent('sp:lang', { detail: b.dataset.lang }));
+      finish();
+    });
+
+    // Header: change language / log out
+    const langBtn = $('#langBtn');
+    const logoutBtn = $('#logoutBtn');
+    langBtn && langBtn.addEventListener('click', () => {
+      gate.hidden = false;
+      gate.classList.remove('is-out');
+      document.documentElement.style.overflow = 'hidden';
+      showLangStep();
+    });
+    logoutBtn && logoutBtn.addEventListener('click', () => {
+      const ok = window.confirm('Log out of Second Pulse?\n\nThis clears your verification, language and donor card from this device.');
+      if (!ok) return;
+      try { [KEY, LANG_KEY, 'sp-pledge', 'sp-feedback'].forEach((k) => localStorage.removeItem(k)); } catch {}
+      location.reload();
+    });
+
+    let verified = false;
+    let hasLang = false;
+    try { verified = (JSON.parse(localStorage.getItem(KEY) || 'null') || {}).verified === true; } catch {}
+    try { hasLang = !!localStorage.getItem(LANG_KEY); } catch {}
+
+    if (verified && hasLang) { gate.hidden = true; document.documentElement.style.overflow = ''; document.documentElement.classList.add('is-verified'); return; }
+
+    gate.hidden = false;
+    document.documentElement.style.overflow = 'hidden';
+    if (verified && !hasLang) { showLangStep(); return; }
+    setTimeout(() => { try { aInput.focus(); } catch {} }, 120);
+
+    // Switch between Aadhaar and email
+    seg.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-mode]');
+      if (!b) return;
+      mode = b.dataset.mode;
+      $$('.seg__btn', seg).forEach((x) => { const on = x === b; x.classList.toggle('is-on', on); x.setAttribute('aria-selected', String(on)); });
+      fieldA.hidden = mode !== 'aadhaar';
+      fieldE.hidden = mode !== 'email';
+      noteText.textContent = NOTE[mode];
+      aErr.textContent = ''; eErr.textContent = '';
+      aInput.removeAttribute('aria-invalid'); eInput.removeAttribute('aria-invalid');
+      setTimeout(() => { try { (mode === 'aadhaar' ? aInput : eInput).focus(); } catch {} }, 60);
+    });
+
+    // Group Aadhaar digits as XXXX XXXX XXXX while typing.
+    aInput.addEventListener('input', () => {
+      const v = aInput.value.replace(/\D/g, '').slice(0, 12);
+      aInput.value = v.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+      if (aErr.textContent) { aErr.textContent = ''; aInput.removeAttribute('aria-invalid'); }
+    });
+    eInput.addEventListener('input', () => { if (eErr.textContent) { eErr.textContent = ''; eInput.removeAttribute('aria-invalid'); } });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const rec = { verified: true, method: mode, date: new Date().toISOString() };
+
+      if (mode === 'aadhaar') {
+        const a = aInput.value.replace(/\D/g, '');
+        if (!validAadhaar(a)) {
+          aErr.textContent = a.length !== 12 ? 'Enter a 12-digit Aadhaar number.' : 'That Aadhaar number looks invalid (checksum failed). Please re-check.';
+          aInput.setAttribute('aria-invalid', 'true');
+          aInput.focus();
+          return;
+        }
+        rec.aadhaarLast4 = a.slice(-4);
+      } else {
+        const em = eInput.value.trim();
+        if (!validEmail(em)) { eErr.textContent = 'Enter a valid email address.'; eInput.setAttribute('aria-invalid', 'true'); eInput.focus(); return; }
+        rec.email = em;
+      }
+
+      try { localStorage.setItem(KEY, JSON.stringify(rec)); } catch {}
+      showLangStep();
+    });
+  }
+
+  /* ---------- 14. Donate: custom amount + UPI / PhonePe ---------- */
+  function initDonate() {
+    const dialog = $('#donateDialog');
+    if (!dialog) return;
+    const amtInput = $('#amtInput');
+    const payBtn = $('#donatePay');
+    const payLabel = $('span', payBtn);
+    // The UPI ID goes only into the pay link; it is never shown on the page
+    const VPA = '8333059876@ptyes';
+    const PN = 'Second%20Pulse';
+    const MAX = 100000; // usual UPI limit per payment
+
+    function refresh() {
+      const raw = amtInput.value.trim();
+      const v = Number(raw);
+      let msg = '';
+      if (!raw || !(v > 0)) msg = 'Enter an amount';
+      else if (!Number.isInteger(v)) msg = 'Whole rupees only';
+      else if (v > MAX) msg = 'Max ₹1,00,000';
+      const ok = !msg;
+      payLabel.textContent = ok ? `Pay ₹${v.toLocaleString('en-IN')}` : msg;
+      if (ok) payBtn.href = `upi://pay?pa=${VPA}&pn=${PN}&am=${v}&cu=INR&tn=Donation`;
+      else payBtn.removeAttribute('href');
+      payBtn.classList.toggle('is-disabled', !ok);
+      payBtn.setAttribute('aria-disabled', String(!ok));
+      amtInput.setAttribute('aria-invalid', String(Boolean(raw) && !ok));
+    }
+    amtInput.addEventListener('input', refresh);
+
+    function open() {
+      document.body.classList.add('pledge-open');
+      document.documentElement.style.overflow = 'hidden';
+      if (typeof dialog.showModal === 'function') { if (!dialog.open) dialog.showModal(); }
+      else dialog.setAttribute('open', '');
+      try { amtInput.focus({ preventScroll: true }); } catch {}
+    }
+    function close() { if (typeof dialog.close === 'function' && dialog.open) dialog.close(); else dialog.removeAttribute('open'); }
+    dialog.addEventListener('close', () => { document.body.classList.remove('pledge-open'); document.documentElement.style.overflow = ''; });
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) close(); });
+    $$('[data-donate-open]').forEach((el) => el.addEventListener('click', (e) => { e.preventDefault(); open(); }));
+    $$('[data-donate-close]', dialog).forEach((el) => el.addEventListener('click', close));
+
+    refresh();
+  }
+
   /* ---------- Boot ---------- */
+  initGate();
   initParticles();
   buildTree();
   initQR();
@@ -821,4 +1255,6 @@
   initSteps();
   initEye();
   initClosing();
+  initPledge();
+  initDonate();
 })();

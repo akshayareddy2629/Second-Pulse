@@ -16,9 +16,59 @@
   <link rel="stylesheet" href="css/style.css">
   <script>document.documentElement.classList.replace('no-js', 'js');</script>
   <script src="js/main.js" defer></script>
+  <script src="js/assistant-lines.js" defer></script>
+  <script src="js/voice-clips.js" defer></script>
+  <script src="js/jarvis.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
+
+  <!-- Start gate: one-time Aadhaar + email check -->
+  <div class="gate" id="gate">
+    <div class="gate__card" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+      <p class="gate__brand"><svg class="i i--fill"><use href="#i-heart"/></svg>SECOND PULSE</p>
+      <!-- Step 1 · verify with EITHER Aadhaar or email -->
+      <div class="gate__step" id="gateStep1">
+        <p class="gate__eyebrow">Secure check-in</p>
+        <h1 class="gate__title" id="gateTitle">Verify to continue</h1>
+        <p class="gate__sub">Choose <b>one</b> way to verify. Your details stay on this device and are never uploaded.</p>
+
+        <div class="seg" id="gateSeg" role="tablist" aria-label="Verification method">
+          <button type="button" class="seg__btn is-on" data-mode="aadhaar" role="tab" aria-selected="true"><svg class="i"><use href="#i-id"/></svg>Aadhaar</button>
+          <button type="button" class="seg__btn" data-mode="email" role="tab" aria-selected="false"><svg class="i"><use href="#i-mail"/></svg>Email</button>
+        </div>
+
+        <form class="gate__form" id="gateForm" novalidate>
+          <div class="field" id="gateFieldAadhaar">
+            <label for="gateAadhaar">Aadhaar number</label>
+            <input class="input" id="gateAadhaar" name="aadhaar" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="XXXX XXXX XXXX" aria-describedby="gateAadhaarErr">
+            <p class="field__err" id="gateAadhaarErr" aria-live="polite"></p>
+          </div>
+          <div class="field" id="gateFieldEmail" hidden>
+            <label for="gateEmail">Email address</label>
+            <input class="input" id="gateEmail" name="email" type="email" autocomplete="email" placeholder="you@example.com" aria-describedby="gateEmailErr">
+            <p class="field__err" id="gateEmailErr" aria-live="polite"></p>
+          </div>
+          <button class="btn btn--primary btn--lg gate__submit" type="submit"><svg class="i"><use href="#i-shield"/></svg><span>Verify &amp; Enter</span></button>
+          <p class="gate__note" id="gateNote"><svg class="i"><use href="#i-lock"/></svg><span id="gateNoteText">Validated on your device using the Aadhaar checksum. We store only the last 4 digits — nothing is sent to a server.</span></p>
+        </form>
+      </div>
+
+      <!-- Step 2 · language -->
+      <div class="gate__step" id="gateStep2" hidden>
+        <p class="gate__eyebrow">One last thing</p>
+        <h1 class="gate__title">Choose your language</h1>
+        <p class="gate__sub">Your AI assistant will speak and reply in this language.</p>
+        <div class="lang-grid" id="langGrid">
+          <button type="button" class="lang-opt" data-lang="en"><b>English</b><small>English</small></button>
+          <button type="button" class="lang-opt" data-lang="hi"><b lang="hi">हिंदी</b><small>Hindi</small></button>
+          <button type="button" class="lang-opt" data-lang="te"><b lang="te">తెలుగు</b><small>Telugu</small></button>
+        </div>
+        <p class="gate__note"><svg class="i"><use href="#i-lang"/></svg><span>You can change this anytime from the header.</span></p>
+      </div>
+    </div>
+  </div>
+  <script>try{var g=JSON.parse(localStorage.getItem('sp-gate')||'null'),l=localStorage.getItem('sp-lang');if(g&&g.verified&&l){document.getElementById('gate').hidden=true;document.documentElement.classList.add('is-verified');}else{document.documentElement.style.overflow='hidden';}}catch(e){}</script>
 
   <!-- ============ ICON SPRITE ============ -->
   <svg class="sprite" aria-hidden="true" focusable="false">
@@ -54,6 +104,16 @@
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="M8.2 10.8l7.6-4.1M8.2 13.2l7.6 4.1"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5v3.5M8.5 21h7"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9.5h3.2L12 6v12l-4.8-3.5H4z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6M18 6.8a7.5 7.5 0 0 1 0 10.4"/></symbol>
+    <symbol id="i-volume-off" viewBox="0 0 24 24"><path d="M4 9.5h3.2L12 6v12l-4.8-3.5H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h12l-3.2-3.4M20 16H8l3.2 3.4"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M4 7.5l8 5.5 8-5.5"/></symbol>
+    <symbol id="i-id" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="8.5" cy="11" r="2"/><path d="M5.8 16c.5-1.5 1.5-2.2 2.7-2.2s2.2.7 2.7 2.2M14 9.5h4M14 12.5h4M14 15.5h2.5"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 4.5H6.5A1.5 1.5 0 0 0 5 6v12a1.5 1.5 0 0 0 1.5 1.5H15"/><path d="M11.5 12H21M17.5 8l4 4-4 4"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.5v11M7.5 10.5L12 15l4.5-4.5M4.5 19.5h15"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.4l2.65 5.7 6.25.78-4.6 4.3 1.2 6.18L12 17.4l-5.5 2.96 1.2-6.18-4.6-4.3 6.25-.78z"/></symbol>
     <symbol id="i-user-plus" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.8"/><path d="M3 20.5c.9-3.8 3.7-6 7-6 1.4 0 2.7.4 3.8 1.1M18.5 14v6M15.5 17h6"/></symbol>
     <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M4 12h16"/></symbol>
     <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.6.8 2.6 2.5 3 5.2"/></symbol>
@@ -91,6 +151,7 @@
       <a href="#solution">The App</a>
       <a href="#how">How it works</a>
       <a href="#future">Future</a>
+      <a href="#donate" class="site-nav__donate" data-donate-open>Donate</a>
     </nav>
 
     <div class="header-actions">
@@ -100,9 +161,15 @@
       <button class="icon-btn" id="fsToggle" type="button" title="Fullscreen (F)">
         <svg class="i"><use href="#i-expand"/></svg><span class="sr-only">Toggle fullscreen</span>
       </button>
-      <a class="btn btn--primary btn--sm header-cta" href="#pledge">
+      <a class="btn btn--primary btn--sm header-cta" href="#pledge" data-pledge-open>
         <svg class="i i--fill"><use href="#i-heart"/></svg><span>Be a Donor</span>
       </a>
+      <button class="icon-btn session-btn" id="langBtn" type="button" title="Change language" aria-label="Change language">
+        <svg class="i"><use href="#i-lang"/></svg>
+      </button>
+      <button class="icon-btn session-btn" id="logoutBtn" type="button" title="Log out" aria-label="Log out">
+        <svg class="i"><use href="#i-logout"/></svg>
+      </button>
       <button class="icon-btn menu-btn" id="menuToggle" type="button" aria-expanded="false" aria-controls="menu">
         <svg class="i"><use href="#i-menu"/></svg><span class="sr-only">Open slide menu</span>
       </button>
@@ -126,6 +193,7 @@
         <li><a href="#legal"><span>08</span>Legal &amp; Safety</a></li>
         <li><a href="#future"><span>09</span>Future Plan</a></li>
         <li><a href="#pledge"><span>10</span>Will You Be A Donor?</a></li>
+        <li><a href="#donate" data-donate-open><span>₹</span>Donate / Support us</a></li>
       </ol>
     </nav>
   </div>
@@ -748,9 +816,9 @@
 
           <article class="legal-card legal-card--mint reveal" style="--d:220">
             <span class="legal-card__icon"><svg class="i"><use href="#i-lock"/></svg></span>
-            <p class="zero" aria-label="Zero rupees"><span>₹</span><b id="zeroNum">0</b></p>
-            <h3>ZERO money transaction</h3>
-            <p>Our app has <b>ZERO money transaction</b>. Nothing is bought. Nothing is sold.</p>
+            <p class="zero" aria-label="Zero rupees for organs"><span>₹</span><b id="zeroNum">0</b></p>
+            <h3>No organ trade — ever</h3>
+            <p>No organ is ever <b>bought or sold</b>, and pledging is always <b>free</b>. Any donation is voluntary and supports awareness only.</p>
           </article>
         </div>
 
@@ -774,6 +842,20 @@
             <li><svg class="i"><use href="#i-check"/></svg>Trusted by hospitals</li>
           </ul>
         </div>
+
+        <details class="thota reveal" style="--d:560">
+          <summary><svg class="i"><use href="#i-scale"/></svg>The THOTA Act, in simple words<span class="thota__chev" aria-hidden="true"><svg class="i"><use href="#i-arrow-down"/></svg></span></summary>
+          <div class="thota__body">
+            <ul class="thota__list">
+              <li><b>Selling or buying organs is a crime.</b> Paying or charging money for an organ can mean jail and a heavy fine.</li>
+              <li><b>Donation must be a gift.</b> You can donate to a near relative freely; other cases need an Authorisation Committee's approval.</li>
+              <li><b>Brain death counts as death.</b> Once doctors certify it, a person on a ventilator can donate and save up to eight lives.</li>
+              <li><b>Pledging is free and your choice.</b> No one can be forced, tricked, or paid to donate.</li>
+              <li><b>Only licensed hospitals</b> may remove and transplant organs, with strict records and oversight.</li>
+            </ul>
+            <p class="thota__src">Transplantation of Human Organs and Tissues Act, 1994 (amended 2011) — India's organ-donation law.</p>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -866,12 +948,9 @@
         <h2 class="closing__q reveal" style="--d:400" id="closing-title">Will You Be <span class="grad-text">A Donor?</span></h2>
 
         <div class="closing__ctas reveal" style="--d:550">
-          <button class="btn btn--primary btn--lg" id="pledgeBtn" type="button">
-            <svg class="i i--fill"><use href="#i-heart"/></svg><span>Yes, I will</span>
+          <button class="btn btn--primary btn--lg" id="pledgeBtn" type="button" data-pledge-open>
+            <svg class="i i--fill"><use href="#i-heart"/></svg><span>Yes, I will pledge</span>
           </button>
-          <a class="btn btn--ghost btn--lg" href="https://notto.mohfw.gov.in/" target="_blank" rel="noopener">
-            <span>Pledge officially at NOTTO</span><svg class="i"><use href="#i-external"/></svg>
-          </a>
         </div>
 
         <p class="closing__ticker reveal" style="--d:700" aria-live="polite"><span class="live-dot" aria-hidden="true"></span><span id="lossTicker">Every minute, about one more person in India dies waiting for an organ.</span></p>
@@ -885,7 +964,7 @@
   <footer class="site-footer">
     <div class="footer__inner">
       <p class="footer__brand"><b>Second Pulse</b> · Organ Donation App · One Donor, Eight Lives</p>
-      <p class="footer__note">Second Pulse never handles money. It only supports pledges, awareness and connecting families to authorised hospitals. To pledge officially in India, visit <a href="https://notto.mohfw.gov.in/" target="_blank" rel="noopener">NOTTO</a>.</p>
+      <p class="footer__note">Second Pulse never charges for organs or pledges — those are free and protected by the THOTA Act. Any donation is voluntary and funds our awareness work.</p>
     </div>
   </footer>
 
@@ -903,5 +982,201 @@
   <div class="hint" id="hint" aria-hidden="true">
     <kbd>←</kbd><kbd>→</kbd> slides · <kbd>N</kbd> notes · <kbd>F</kbd> fullscreen
   </div>
+
+  <!-- JARVIS: AI voice assistant -->
+  <button class="jarvis-fab" id="jarvisFab" type="button" aria-haspopup="dialog" aria-controls="jarvisPanel" aria-expanded="false" aria-label="Open the voice assistant">
+    <span class="jarvis-orb" aria-hidden="true"></span>
+    <span class="jarvis-fab__hint">Ask your AI</span>
+  </button>
+
+  <section class="jarvis" id="jarvisPanel" role="dialog" aria-label="JARVIS voice assistant" hidden>
+    <header class="jarvis__head">
+      <span class="jarvis__badge" aria-hidden="true"></span>
+      <div class="jarvis__id">
+        <b id="jarvisName">JARVIS</b>
+        <small id="jarvisStatus">Online</small>
+      </div>
+      <button class="icon-btn jarvis__switch" id="jarvisSwitch" type="button" aria-label="Switch assistant voice" title="Switch voice"><svg class="i"><use href="#i-swap"/></svg></button>
+      <button class="icon-btn jarvis__mute" id="jarvisMute" type="button" aria-pressed="false" aria-label="Mute voice" title="Mute voice"><svg class="i"><use href="#i-volume"/></svg></button>
+      <button class="icon-btn jarvis__close" id="jarvisClose" type="button" aria-label="Close assistant"><svg class="i"><use href="#i-x"/></svg></button>
+    </header>
+
+    <div class="jarvis__choose" id="jarvisChoose" hidden>
+      <p class="jarvis__choose-q">Who would you like as your assistant?</p>
+      <div class="jarvis__choose-grid">
+        <button type="button" class="vopt vopt--j" data-voice="jarvis"><span class="vopt__orb vopt__orb--j"></span><b>JARVIS</b><small>Male · British</small></button>
+        <button type="button" class="vopt vopt--f" data-voice="friday"><span class="vopt__orb vopt__orb--f"></span><b>FRIDAY</b><small>Female · Irish</small></button>
+      </div>
+      <p class="jarvis__choose-note">Pick a voice. You can switch anytime from the header.</p>
+    </div>
+
+    <div class="jarvis__viz" id="jarvisViz" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
+
+    <div class="jarvis__log" id="jarvisLog" role="log" aria-live="polite"></div>
+
+    <div class="jarvis__suggest" id="jarvisSuggest">
+      <button type="button" data-ask="What is Second Pulse?">What is Second Pulse?</button>
+      <button type="button" data-ask="Explain the science of organ time">The science</button>
+      <button type="button" data-ask="How does it work?">How it works</button>
+      <button type="button" data-ask="Is it legal?">Is it legal?</button>
+      <button type="button" data-ask="I want to pledge">Take the pledge</button>
+    </div>
+
+    <form class="jarvis__input" id="jarvisForm">
+      <button class="jarvis__mic" id="jarvisMic" type="button" aria-label="Speak to JARVIS" title="Speak"><svg class="i"><use href="#i-mic"/></svg></button>
+      <input id="jarvisText" type="text" autocomplete="off" placeholder="Ask JARVIS anything…" aria-label="Message to JARVIS">
+      <button class="jarvis__send" id="jarvisSend" type="submit" aria-label="Send message"><svg class="i"><use href="#i-arrow-right"/></svg></button>
+    </form>
+  </section>
+
+  <!-- Pledge dialog: the site takes the pledge -->
+  <dialog class="pledge-dialog" id="pledgeDialog" aria-labelledby="pledgeTitle">
+    <div class="pledge">
+      <div class="pledge__head">
+        <p class="pledge__eyebrow"><svg class="i i--fill"><use href="#i-heart"/></svg>Digital Donor Pledge</p>
+        <h2 class="pledge__title" id="pledgeTitle">Take the <b>pledge</b></h2>
+        <p class="pledge__sub">Register in 2 minutes and get your digital donor card.</p>
+        <button class="icon-btn pledge__close" type="button" data-pledge-close aria-label="Close pledge form"><svg class="i"><use href="#i-x"/></svg></button>
+      </div>
+
+      <form class="pledge__body" id="pledgeForm" novalidate>
+        <div class="field">
+          <label for="plName">Full name <span class="req">*</span></label>
+          <input class="input" id="plName" name="name" type="text" autocomplete="name" placeholder="Your full name" required>
+          <p class="field__err" id="plNameErr" aria-live="polite"></p>
+        </div>
+
+        <div class="pledge__row pledge__row--2">
+          <div class="field">
+            <label for="plMobile">Mobile <span class="opt">(optional)</span></label>
+            <input class="input" id="plMobile" name="mobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91">
+          </div>
+          <div class="field">
+            <label for="plCity">City <span class="opt">(optional)</span></label>
+            <input class="input" id="plCity" name="city" type="text" autocomplete="address-level2" placeholder="City / State">
+          </div>
+        </div>
+
+        <div class="field">
+          <fieldset>
+            <legend class="field__legend">Blood group</legend>
+            <div class="chips">
+              <label class="chip"><input type="radio" name="blood" value="A+"><span>A+</span></label>
+              <label class="chip"><input type="radio" name="blood" value="A-"><span>A-</span></label>
+              <label class="chip"><input type="radio" name="blood" value="B+"><span>B+</span></label>
+              <label class="chip"><input type="radio" name="blood" value="B-"><span>B-</span></label>
+              <label class="chip"><input type="radio" name="blood" value="O+"><span>O+</span></label>
+              <label class="chip"><input type="radio" name="blood" value="O-"><span>O-</span></label>
+              <label class="chip"><input type="radio" name="blood" value="AB+"><span>AB+</span></label>
+              <label class="chip"><input type="radio" name="blood" value="AB-"><span>AB-</span></label>
+              <label class="chip"><input type="radio" name="blood" value="Not sure" checked><span>Not sure</span></label>
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="field">
+          <fieldset>
+            <legend class="field__legend">I pledge to donate <span class="req">*</span></legend>
+            <div class="chips">
+              <label class="chip"><input type="checkbox" name="organs" value="Heart" checked><span><svg class="i"><use href="#o-heart"/></svg>Heart</span></label>
+              <label class="chip"><input type="checkbox" name="organs" value="Kidneys" checked><span><svg class="i"><use href="#o-kidney"/></svg>Kidneys</span></label>
+              <label class="chip"><input type="checkbox" name="organs" value="Liver" checked><span><svg class="i"><use href="#o-liver"/></svg>Liver</span></label>
+              <label class="chip"><input type="checkbox" name="organs" value="Lungs" checked><span><svg class="i"><use href="#o-lungs"/></svg>Lungs</span></label>
+              <label class="chip"><input type="checkbox" name="organs" value="Corneas" checked><span><svg class="i"><use href="#o-eye"/></svg>Corneas</span></label>
+              <label class="chip"><input type="checkbox" name="organs" value="Pancreas" checked><span>Pancreas</span></label>
+              <label class="chip"><input type="checkbox" name="organs" value="Tissues" checked><span>Tissues</span></label>
+            </div>
+            <p class="field__err" id="plOrganErr" aria-live="polite"></p>
+          </fieldset>
+        </div>
+
+        <label class="consent" id="plConsentWrap">
+          <input type="checkbox" id="plConsent" name="consent">
+          <span>I pledge to donate my organs and tissues after death, and I will tell my family about my decision. <span class="req">*</span></span>
+        </label>
+
+        <p class="pledge__note"><svg class="i"><use href="#i-lock"/></svg><span>Free, always. Second Pulse never charges for pledges or organs. It only records your pledge and helps your family connect to an authorised hospital.</span></p>
+      </form>
+
+      <div class="pledge__success" id="pledgeSuccess" hidden>
+        <span class="pledge__tick"><svg class="i"><use href="#i-check"/></svg></span>
+        <h3>Thank you, <b id="pledgeWho">friend</b>.</h3>
+        <p>Your pledge is recorded. One day you could give life to up to <b>8 people</b>.</p>
+        <div class="pledge-card-wrap" id="pledgeCardWrap"></div>
+        <p class="pledge__saved"><svg class="i"><use href="#i-lock"/></svg> Saved on this device. Please tell your family you’ve pledged.</p>
+        <div class="pledge__success-actions">
+          <button class="btn btn--ghost btn--sm" id="pledgeDownloadBtn" type="button"><svg class="i"><use href="#i-download"/></svg><span>Download card</span></button>
+          <button class="btn btn--ghost btn--sm" id="pledgeShareBtn" type="button"><svg class="i"><use href="#i-share"/></svg><span>Share</span></button>
+          <button class="btn btn--ghost btn--sm" id="pledgeEditBtn" type="button"><span>Edit details</span></button>
+        </div>
+
+        <!-- Feedback after the pledge -->
+        <div class="feedback" id="feedback">
+          <p class="feedback__q">How was your experience?</p>
+          <div class="stars" id="stars" role="radiogroup" aria-label="Rate your experience">
+            <button type="button" class="star" data-rate="1" role="radio" aria-checked="false" aria-label="1 star"><svg class="i i--fill"><use href="#i-star"/></svg></button>
+            <button type="button" class="star" data-rate="2" role="radio" aria-checked="false" aria-label="2 stars"><svg class="i i--fill"><use href="#i-star"/></svg></button>
+            <button type="button" class="star" data-rate="3" role="radio" aria-checked="false" aria-label="3 stars"><svg class="i i--fill"><use href="#i-star"/></svg></button>
+            <button type="button" class="star" data-rate="4" role="radio" aria-checked="false" aria-label="4 stars"><svg class="i i--fill"><use href="#i-star"/></svg></button>
+            <button type="button" class="star" data-rate="5" role="radio" aria-checked="false" aria-label="5 stars"><svg class="i i--fill"><use href="#i-star"/></svg></button>
+          </div>
+          <label class="sr-only" for="fbText">Your feedback</label>
+          <textarea class="input fb-text" id="fbText" rows="2" placeholder="Any suggestions? (optional)"></textarea>
+          <button class="btn btn--primary btn--sm fb-send" id="fbSend" type="button"><svg class="i"><use href="#i-check"/></svg><span>Send feedback</span></button>
+        </div>
+        <div class="feedback__done" id="fbDone" hidden>
+          <svg class="i"><use href="#i-check"/></svg><span>Thank you for your feedback.</span>
+        </div>
+
+        <div class="pledge__success-actions">
+          <button class="btn btn--primary btn--sm" id="pledgeDoneBtn" type="button" data-pledge-close><svg class="i"><use href="#i-check"/></svg><span>Done</span></button>
+        </div>
+      </div>
+
+      <div class="pledge__foot" id="pledgeFoot">
+        <button class="btn btn--ghost" type="button" data-pledge-close><span>Cancel</span></button>
+        <button class="btn btn--primary" type="submit" form="pledgeForm"><svg class="i i--fill"><use href="#i-heart"/></svg><span>Confirm my pledge</span></button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Donate dialog: voluntary support for the mission -->
+  <dialog class="pledge-dialog donate-dialog" id="donateDialog" aria-labelledby="donateTitle">
+    <div class="pledge">
+      <div class="pledge__head">
+        <p class="pledge__eyebrow"><svg class="i i--fill"><use href="#i-heart"/></svg>Support the mission</p>
+        <h2 class="pledge__title" id="donateTitle">Fund the <b>awareness</b></h2>
+        <p class="pledge__sub">A voluntary gift to run camps, education and the app. Never for organs — those are free and protected by law.</p>
+        <button class="icon-btn pledge__close" type="button" data-donate-close aria-label="Close donation"><svg class="i"><use href="#i-x"/></svg></button>
+      </div>
+
+      <div class="pledge__body">
+        <div class="field">
+          <label for="amtInput">Enter your amount</label>
+          <div class="amt-input">
+            <span class="amt-input__cur" aria-hidden="true">₹</span>
+            <input class="input" id="amtInput" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="Any amount" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="upi">
+          <div class="upi__qr">
+            <img src="assets/upi-qr.svg" alt="UPI QR code to donate to Second Pulse" width="180" height="180">
+            <span class="upi__scan"><svg class="i"><use href="#i-scan"/></svg>Scan with PhonePe or any UPI app, then enter your amount</span>
+          </div>
+        </div>
+
+        <p class="pledge__note"><svg class="i"><use href="#i-lock"/></svg><span>Payment happens inside your own UPI app. Second Pulse never sees your card or bank details, and never charges for organs or pledges.</span></p>
+      </div>
+
+      <div class="pledge__foot">
+        <button class="btn btn--ghost" type="button" data-donate-close><span>Close</span></button>
+        <a class="btn btn--primary is-disabled" id="donatePay" aria-disabled="true"><svg class="i i--fill"><use href="#i-heart"/></svg><span>Enter an amount</span></a>
+      </div>
+    </div>
+  </dialog>
+
 </body>
 </html>
